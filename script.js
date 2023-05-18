@@ -1,3 +1,7 @@
+import { getDataFromAPI } from "./modules/api.js";
+import { sendDataToAPI } from "./modules/api.js";
+import { renderComments } from "./modules/render.js";
+
 "use strict";
 window.scrollTo(0, 0)
 
@@ -10,45 +14,13 @@ const removeLastCommentButton = document.querySelector(".remove-last-comment-but
 const nameInput = document.querySelector('.add-form-name');
 const textInput = document.querySelector('.add-form-text');
 const submitButton = document.querySelector('.add-form-button');
-
-
-let comments = [ //ммассив с комментариями 
-    // {
-    //     author: 'Глеб Фокин',
-    //     date: '12.02.22 12:18',
-    //     text: 'Это будет первый комментарий на этой странице',
-    //     likes: 3,
-    //     isLiked: true
-    // },
-    // {
-    //     author: 'Варвара Н.',
-    //     date: '13.02.22 19:22',
-    //     text: 'Мне нравится как оформлена эта страница! ❤',
-    //     likes: 74,
-    //     isLiked: false
-    // },
-
-    // ...
-];
-
-
-function dateElement() {
-    let date = new Date()
-    let monthArray = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
-    let Minute = String(date.getMinutes()).length < 2 ? '0' + date.getMinutes() : date.getMinutes();
-    let Hours = String(date.getHours()).length < 2 ? '0' + date.getHours() : date.getHours();
-    let Day = String(date.getDate()).length < 2 ? '0' + date.getDate() : date.getDate();
-    let Month = monthArray[+date.getMonth()]
-    let Year = String(date.getFullYear()).slice(2);
-    let str = Day + '.' + Month + '.' + Year + ' ' + Hours + ':' + Minute;
-    return str
-}
+let comments = [];
 
 
 //подключение и рендер комментариев из API
 //получение данных с сервера
 function fetchComments() {
-    
+
     //скрываем лишние элементы во время загрузки страницы
     form.classList.add('hidden');
     removeLastCommentButton.style.display = 'none';
@@ -56,25 +28,13 @@ function fetchComments() {
     const loader = document.querySelector('.loader-page');
     loader.classList.add('visible');
 
-    const fetchPromise = fetch(
-        "https://webdev-hw-api.vercel.app/api/v1/artyom-kovalchuk/comments",
-        {
-            method: "GET",
-        }
-    );
-
-    return fetchPromise
-        .then((response) => {
-            console.log(response);
-            const jsonPromise = response.json();
-            return jsonPromise;
-        })
+    getDataFromAPI() //функция в модуле api.js
         .then((responseData) => {
             console.log(responseData);
             const appComments = responseData.comments.map((comment) => {
                 return {
                     name: comment.author.name,
-                    date: dateElement(),
+                    date: new Date().toLocaleString(),
                     text: comment.text,
                     likes: comment.likes,
                     isliked: false,
@@ -82,67 +42,30 @@ function fetchComments() {
             });
 
             comments = appComments;
-            renderComments(comments);
             return loader;
         })
         .then((loader) => {
             loader.classList.remove('visible');
             loader.parentNode.removeChild(loader);
+            renderComments(comments, commentsList)
         })
         .then(() => {
             form.classList.remove('hidden');
             removeLastCommentButton.style.display = 'block';
+            renderComments(comments, commentsList); //функция в модуле render.js
         })
 }
 
-fetchComments();
-
-
 
 //рендер комментариев, вызываем функцию ответа на комментарии, вызываем функцию кнопки лайка
-function renderComments(comments) {
-    // очищаем список комментариев перед добавлением новых
-    commentsList.innerHTML = '';
-
-    // создаем новый массив с разметкой комментариев
-    const commentItems = comments
-        .map(comment => `
-          <li class="comment">
-            <div class="comment-header">
-              <div>${comment.name}</div>
-              <div>${comment.date}</div>
-            </div>
-            <div class="comment-body">
-              <div class="comment-text">${comment.text}</div>
-            </div>
-            <div class="comment-footer">
-              <div class="likes">
-                <span class="likes-counter">${comment.likes}</span>
-                <button class="like-button ${comment.isLiked ? '-active-like' : ''}"></button>
-              </div>
-            </div>
-          </li>`
-        );
-
-    const commentsHTML = commentItems
-        .join('');
-
-    // добавляем новый список комментариев на страницу
-    commentsList.insertAdjacentHTML('beforeend', commentsHTML);
-
-    addCommentReplyEvent();
-
-    setupLikeButtons();
 
 
-}
-
-renderComments(comments);
-
-
+//добавление комментария
 function addComment() {
-
-    // Скрыть форму, кнопку удал. комм.
+    //сохраняем введённые пользователем в форму данные
+    const nameInputValue = nameInput.value;
+    const textInputValue = textInput.value;
+    //скрыть форму, кнопку удал. комм.
     form.classList.add('hidden');
     removeLastCommentButton.style.display = 'none';
     //загружаем лоадер
@@ -151,30 +74,48 @@ function addComment() {
 
     const newComment = {
         name: nameInput.value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
-        date: dateElement(),
+        date: new Date().toLocaleString(),
         text: textInput.value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
         likes: 0,
         isLiked: false,
+        forceError: false,
     };
 
-    fetch("https://webdev-hw-api.vercel.app/api/v1/artyom-kovalchuk/comments", {
-        method: "POST",
-        body: JSON.stringify(newComment),
-    })
+
+
+    sendDataToAPI(newComment) //функция в модуле api.js 
         .then((response) => {
-            console.log(response);
-
-            //возвращаем обратно форму и кнопку удаления, скрываем лоадер
-            form.classList.remove('hidden');
-            removeLastCommentButton.style.display = 'block';
-            loader.classList.add('hidden');
-
+            //проверяем, что ответ выполнен успешно и содержит данные
+            if (response.status === 201) {
+                console.log(response);
+                //возвращаем обратно форму и кнопку удаления, скрываем лоадер
+                form.classList.remove("hidden");
+                removeLastCommentButton.style.display = "block";
+                loader.classList.add("hidden");
+                return response.json();
+                // fetchComments();
+            } else if (response.status === 400) {
+                textInput.value = textInputValue;
+                nameInput.value = nameInputValue;
+                throw new Error("Имя и комментарий должны быть не короче 3-х символов");
+            } else if (response.status === 500) {
+                textInput.value = textInputValue;
+                nameInput.value = nameInputValue;
+                throw new Error("Сервер сломался :( Повторите попытку позже")
+            }
         })
-        .then(() => {
-            comments.push(newComment);
-            renderComments(comments);
+        .catch((error) => {
+            //не прогоняем сценарий удаления формы во время ошибки
+            form.classList.remove("hidden");
+            removeLastCommentButton.style.display = "block";
+            loader.classList.add("hidden");
+            alert(error.message);
+            console.log(error);
         });
 }
+
+
+fetchComments();
 
 
 
@@ -191,22 +132,23 @@ addFormButton.addEventListener("click", (event) => { // находим кноп�
         return;
     }
 
-    const date = new Date().toLocaleString();
-
     addComment()
 
     addFormName.value = "";
     addFormText.value = "";
 });
 
-validateForm();
 
 
 //удаление последнего комментария
 function removeLastComment() {
     if (comments.length > 0) {
         comments.pop(); // удаляем последний элемент из массива комментариев
-        renderComments(comments); // рендерим обновленный список комментариев
+        renderComments(comments, commentsList); // рендерим обновленный список комментариев
+    }
+
+    if (comments.length == 0) {
+        removeLastCommentButton.style.display = 'none';
     }
 }
 
@@ -222,7 +164,7 @@ addFormText.addEventListener("keyup", function (event) {
 
 
 //кнопка лайка
-function setupLikeButtons() {
+export function setupLikeButtons() {
     const likeButtons = document.querySelectorAll('.like-button');
 
     likeButtons.forEach((button, index) => {
@@ -239,14 +181,14 @@ function setupLikeButtons() {
                 comment.isLiked = true;
             }
 
-            renderComments(comments);
+            renderComments(comments, commentsList);
         });
     });
 }
 
 
 //функция ответа на комментарии
-function addCommentReplyEvent() {
+export function addCommentReplyEvent() {
     const commentToReply = document.querySelectorAll('.comment');
     commentToReply.forEach(comment => {
         comment.addEventListener('click', () => {
@@ -286,3 +228,5 @@ function validateForm() {
     addFormButton.disabled = !isValid;
     addFormButton.classList.toggle("disabled", !isValid);
 }
+
+validateForm();
