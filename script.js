@@ -1,3 +1,7 @@
+import { getDataFromAPI } from "./modules/api.js";
+import { sendDataToAPI } from "./modules/api.js";
+import { renderComments } from "./modules/render.js";
+
 "use strict";
 window.scrollTo(0, 0)
 
@@ -24,15 +28,7 @@ function fetchComments() {
     const loader = document.querySelector('.loader-page');
     loader.classList.add('visible');
 
-    fetch("https://webdev-hw-api.vercel.app/api/v1/artyom-kovalchuk/comments",
-        {
-            method: "GET",
-        })
-        .then((response) => {
-            console.log(response);
-            const jsonPromise = response.json();
-            return jsonPromise;
-        })
+    getDataFromAPI() //функция в модуле api.js
         .then((responseData) => {
             console.log(responseData);
             const appComments = responseData.comments.map((comment) => {
@@ -46,66 +42,27 @@ function fetchComments() {
             });
 
             comments = appComments;
-            renderComments(comments);
             return loader;
         })
         .then((loader) => {
             loader.classList.remove('visible');
             loader.parentNode.removeChild(loader);
+            renderComments(comments, commentsList)
         })
         .then(() => {
             form.classList.remove('hidden');
             removeLastCommentButton.style.display = 'block';
+            renderComments(comments, commentsList); //функция в модуле render.js
         })
 }
 
-fetchComments();
-
-
 
 //рендер комментариев, вызываем функцию ответа на комментарии, вызываем функцию кнопки лайка
-function renderComments(comments) {
-    // очищаем список комментариев перед добавлением новых
-    commentsList.innerHTML = '';
-    // создаем новый массив с разметкой комментариев
-    const commentItems = comments
-        .map(comment => `
-          <li class="comment">
-            <div class="comment-header">
-              <div>${comment.name}</div>
-              <div>${comment.date}</div>
-            </div>
-            <div class="comment-body">
-              <div class="comment-text">${comment.text}</div>
-            </div>
-            <div class="comment-footer">
-              <div class="likes">
-                <span class="likes-counter">${comment.likes}</span>
-                <button class="like-button ${comment.isLiked ? '-active-like' : ''}"></button>
-              </div>
-            </div>
-          </li>`
-        );
-
-    const commentsHTML = commentItems
-        .join('');
-
-    // добавляем новый список комментариев на страницу
-    commentsList.insertAdjacentHTML('beforeend', commentsHTML);
-
-    addCommentReplyEvent();
-
-    setupLikeButtons();
-
-
-}
-
-renderComments(comments);
 
 
 //добавление комментария
 function addComment() {
-   //сохраняем введённые пользователем в форму данные
+    //сохраняем введённые пользователем в форму данные
     const nameInputValue = nameInput.value;
     const textInputValue = textInput.value;
     //скрыть форму, кнопку удал. комм.
@@ -121,16 +78,12 @@ function addComment() {
         text: textInput.value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
         likes: 0,
         isLiked: false,
-        forceError: true,
+        forceError: false,
     };
 
 
 
-
-    fetch("https://webdev-hw-api.vercel.app/api/v1/artyom-kovalchuk/comments", {
-        method: "POST",
-        body: JSON.stringify(newComment),
-    })
+    sendDataToAPI(newComment) //функция в модуле api.js 
         .then((response) => {
             //проверяем, что ответ выполнен успешно и содержит данные
             if (response.status === 201) {
@@ -140,6 +93,7 @@ function addComment() {
                 removeLastCommentButton.style.display = "block";
                 loader.classList.add("hidden");
                 return response.json();
+                // fetchComments();
             } else if (response.status === 400) {
                 textInput.value = textInputValue;
                 nameInput.value = nameInputValue;
@@ -149,29 +103,19 @@ function addComment() {
                 nameInput.value = nameInputValue;
                 throw new Error("Сервер сломался :( Повторите попытку позже")
             }
-            else {
-                textInput.value = textInputValue;
-                nameInput.value = nameInputValue;
-                throw new Error("Ошибка сети. Проверьте поключение к интернету.")
-            }
-        })
-        .then(() => {
-            comments.push(newComment);
-            renderComments(comments);
         })
         .catch((error) => {
             //не прогоняем сценарий удаления формы во время ошибки
             form.classList.remove("hidden");
             removeLastCommentButton.style.display = "block";
             loader.classList.add("hidden");
-            if (error instanceof TypeError) {
-                alert("Ошибка сети. Проверьте подключение к интернету");
-            }
-            else {
-                alert(error.message);
-            }
+            alert(error.message);
+            console.log(error);
         });
 }
+
+
+fetchComments();
 
 
 
@@ -200,7 +144,7 @@ addFormButton.addEventListener("click", (event) => { // находим кноп�
 function removeLastComment() {
     if (comments.length > 0) {
         comments.pop(); // удаляем последний элемент из массива комментариев
-        renderComments(comments); // рендерим обновленный список комментариев
+        renderComments(comments, commentsList); // рендерим обновленный список комментариев
     }
 
     if (comments.length == 0) {
@@ -220,7 +164,7 @@ addFormText.addEventListener("keyup", function (event) {
 
 
 //кнопка лайка
-function setupLikeButtons() {
+export function setupLikeButtons() {
     const likeButtons = document.querySelectorAll('.like-button');
 
     likeButtons.forEach((button, index) => {
@@ -237,14 +181,14 @@ function setupLikeButtons() {
                 comment.isLiked = true;
             }
 
-            renderComments(comments);
+            renderComments(comments, commentsList);
         });
     });
 }
 
 
 //функция ответа на комментарии
-function addCommentReplyEvent() {
+export function addCommentReplyEvent() {
     const commentToReply = document.querySelectorAll('.comment');
     commentToReply.forEach(comment => {
         comment.addEventListener('click', () => {
